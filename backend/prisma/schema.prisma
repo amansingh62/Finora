@@ -7,6 +7,53 @@ datasource db {
   provider = "postgresql"
 }
 
+enum WalletStatus {
+  ACTIVE
+  FROZEN
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+}
+
+enum LedgerEntryType {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER
+  RESERVATION
+  RELEASE
+  ADJUSTMENT
+}
+
+enum Direction {
+  CREDIT
+  DEBIT
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum DepositStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
 model User {
   id       String @id @default(uuid())
   name     String
@@ -17,6 +64,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   refreshTokens RefreshToken[]
+  wallet        Wallet?
 }
 
 model RefreshToken {
@@ -32,3 +80,118 @@ model RefreshToken {
   @@index([userId])
 }
 
+model Wallet {
+  id String @id @default(uuid())
+
+  cashBalance         Decimal @default(0) @db.Decimal(18, 2)
+  usedMargin          Decimal @default(0) @db.Decimal(18, 2)
+  reservedWithdrawals Decimal @default(0) @db.Decimal(18, 2)
+
+  status WalletStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  ledgerEntries LedgerEntry[]
+  withdrawals   Withdrawal[]
+  deposits Deposit[]
+}
+
+model Transaction {
+  id String @id @default(uuid())
+
+  amount          Decimal           @db.Decimal(18, 2)
+  transactionType TransactionType
+  referenceId     String            @unique
+  status          TransactionStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+  withdrawal    Withdrawal?
+  deposit Deposit?
+}
+
+model LedgerEntry {
+  id String @id @default(uuid())
+
+  entryType    LedgerEntryType
+  amount       Decimal         @db.Decimal(18, 2)
+  direction    Direction
+  balanceAfter Decimal         @db.Decimal(18, 2)
+
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  referenceId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([walletId, createdAt])
+  @@index([transactionId])
+  @@index([referenceId])
+}
+
+model Withdrawal {
+  id String @id @default(uuid())
+
+  amount         Decimal @db.Decimal(18, 2)
+  reservedAmount Decimal
+
+  status         WithdrawalStatus @default(PENDING)
+  idempotencyKey String           @unique
+  referenceId    String?          @unique
+
+  failureReason String?
+
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  walletId String
+  wallet   Wallet @relation(fields: [walletId], references: [id])
+
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Deposit {
+  id String @id @default(uuid())
+
+  amount Decimal @db.Decimal(18, 2)
+
+  status DepositStatus @default(PENDING)
+
+  referenceId    String? @unique
+  idempotencyKey String  @unique
+
+  paymentReference String?
+  failureReason    String?
+
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+
+  walletId String
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  transactionId String?  @unique
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([walletId, createdAt])
+  @@index([status, createdAt])
+}

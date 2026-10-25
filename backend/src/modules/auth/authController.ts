@@ -42,16 +42,41 @@ export const register = async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         name: name.trim(),
         email: normalizedEmail,
         password: hashedPassword,
+
+        wallet: {
+          create: {
+            cashBalance: 50000,
+            usedMargin: 0,
+            reservedWithdrawals: 0,
+            status: "ACTIVE",
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        wallet: {
+          select: {
+            id: true,
+            cashBalance: true,
+            usedMargin: true,
+            reservedWithdrawals: true,
+            status: true,
+          },
+        },
       },
     });
 
     return res.status(201).json({
-      message: "User created successfully",
+      message: "User and wallet created successfully",
+      user,
     });
   } catch (error) {
     console.error("Register Error:", error);
