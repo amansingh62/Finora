@@ -8,7 +8,10 @@ import {
   WalletStatus,
 } from "../../../generated/prisma/enums.js";
 
-export const processDepositService = async (depositId: string, userId: string) => {
+export const processDepositService = async (
+  depositId: string,
+  userId: string,
+) => {
   return prisma.$transaction(async (tx) => {
     const deposit = await tx.deposit.findFirst({
       where: {
@@ -22,6 +25,7 @@ export const processDepositService = async (depositId: string, userId: string) =
         referenceId: true,
         transactionId: true,
         walletId: true,
+        bankAccountId: true,
         wallet: {
           select: {
             status: true,
@@ -51,6 +55,24 @@ export const processDepositService = async (depositId: string, userId: string) =
       throw new Error("WALLET_INACTIVE");
     }
 
+    if (!deposit.bankAccountId) {
+      throw new Error("BANK_ACCOUNT_REQUIRED");
+    }
+
+    const bankAccount = await tx.bankAccount.findFirst({
+      where: {
+        id: deposit.bankAccountId,
+        userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!bankAccount) {
+      throw new Error("BANK_ACCOUNT_NOT_FOUND");
+    }
+
     const claim = await tx.deposit.updateMany({
       where: {
         id: deposit.id,
@@ -65,8 +87,29 @@ export const processDepositService = async (depositId: string, userId: string) =
       throw new Error("DEPOSIT_PROCESSING_CONFLICT");
     }
 
+    const bankDebit = await tx.bankAccount.updateMany({
+      where: {
+        id: bankAccount.id,
+        userId,
+        balance: {
+          gte: deposit.amount,
+        },
+      },
+      data: {
+        balance: {
+          decrement: deposit.amount,
+        },
+      },
+    });
+
+    if (bankDebit.count !== 1) {
+      throw new Error("INSUFFICIENT_BANK_BALANCE");
+    }
+
     const wallet = await tx.wallet.update({
-      where: { id: deposit.walletId },
+      where: {
+        id: deposit.walletId,
+      },
       data: {
         cashBalance: {
           increment: deposit.amount,
@@ -94,12 +137,14 @@ export const processDepositService = async (depositId: string, userId: string) =
         balanceAfter: wallet.cashBalance,
         walletId: deposit.walletId,
         transactionId: transaction.id,
-        referenceId: deposit.referenceId ?? deposit.id,
+        referenceId: `deposit:${deposit.id}`,
       },
     });
 
     const completedDeposit = await tx.deposit.update({
-      where: { id: deposit.id },
+      where: {
+        id: deposit.id,
+      },
       data: {
         status: DepositStatus.SUCCESS,
         completedAt: new Date(),
@@ -114,6 +159,7 @@ export const processDepositService = async (depositId: string, userId: string) =
         requestedAt: true,
         completedAt: true,
         transactionId: true,
+        bankAccountId: true,
       },
     });
 

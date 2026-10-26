@@ -10,13 +10,35 @@ import { processDepositService } from "./depositService.js";
 export const deposit = async (req: Request, res: Response) => {
   try {
     const userId = req.userId;
-    const { amount } = req.body;
+    const { amount, bankAccountId } = req.body;
 
     const idempotencyKey = req.get("Idempotency-Key")?.trim();
 
     if (!userId) {
       return res.status(401).json({
         message: "Unauthorized",
+      });
+    }
+
+    if (typeof bankAccountId !== "string" || !bankAccountId.trim()) {
+      return res.status(400).json({
+        message: "Bank account ID is required",
+      });
+    }
+
+    const bankAccount = await prisma.bankAccount.findFirst({
+      where: {
+        id: bankAccountId,
+        userId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!bankAccount) {
+      return res.status(404).json({
+        message: "Bank account not found",
       });
     }
 
@@ -90,13 +112,9 @@ export const deposit = async (req: Request, res: Response) => {
         });
       }
 
-      const result = await processDepositService(
-        existingDeposit.id,
-        userId
-      );
+      const result = await processDepositService(existingDeposit.id, userId);
 
-      const isSuccessful =
-        result.deposit.status === DepositStatus.SUCCESS;
+      const isSuccessful = result.deposit.status === DepositStatus.SUCCESS;
 
       return res.status(200).json({
         message: result.alreadyProcessed
@@ -141,6 +159,7 @@ export const deposit = async (req: Request, res: Response) => {
       data: {
         amount: depositAmount,
         walletId: wallet.id,
+        bankAccountId: bankAccount.id,
         idempotencyKey,
         status: DepositStatus.PENDING,
       },
@@ -151,8 +170,7 @@ export const deposit = async (req: Request, res: Response) => {
 
     const result = await processDepositService(newDeposit.id, userId);
 
-    const isSuccessful =
-      result.deposit.status === DepositStatus.SUCCESS;
+    const isSuccessful = result.deposit.status === DepositStatus.SUCCESS;
 
     return res.status(201).json({
       message: isSuccessful
