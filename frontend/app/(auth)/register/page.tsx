@@ -6,6 +6,35 @@ import Link from "next/link";
 import axios from "axios";
 import api from "@/lib/api";
 
+type FieldErrors = { name?: string; email?: string; password?: string };
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+
+const perks = [
+  "Build watchlists for the instruments you follow",
+  "Place and review your orders in one place",
+  "See your holdings and P&L on a single dashboard",
+];
+
+const animationCss = `
+@keyframes fin-draw { to { stroke-dashoffset: 0; } }
+@keyframes fin-fade { to { opacity: 1; } }
+.fin-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: fin-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) 0.3s forwards;
+}
+.fin-area, .fin-dot {
+  opacity: 0;
+  animation: fin-fade 0.8s ease 2.4s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fin-line { animation: none; stroke-dashoffset: 0; }
+  .fin-area, .fin-dot { animation: none; opacity: 1; }
+}
+`;
+
 export default function Register() {
   const router = useRouter();
 
@@ -13,44 +42,77 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState("");
+
+  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH;
+
+  const validate = (): FieldErrors => {
+    const errors: FieldErrors = {};
+
+    if (!name.trim()) {
+      errors.name = "Enter your full name.";
+    }
+
+    if (!email.trim()) {
+      errors.email = "Enter your email address.";
+    } else if (!EMAIL_PATTERN.test(email.trim())) {
+      errors.email = "Enter a valid email address, like you@example.com.";
+    }
+
+    if (!password) {
+      errors.password = "Create a password.";
+    } else if (!passwordLongEnough) {
+      errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    }
+
+    return errors;
+  };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError("All fields are required.");
-      return;
-    }
+    const errors = validate();
+    setFieldErrors(errors);
+    setError("");
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
+    const firstInvalid = (["name", "email", "password"] as const).find(
+      (field) => errors[field]
+    );
+    if (firstInvalid) {
+      document.getElementById(firstInvalid)?.focus();
       return;
     }
 
     try {
       setLoading(true);
-      setError("");
 
-      await api.post("/auth/register", {
-        name: name.trim(),
-        email: email.trim(),
-        password,
-      });
+      await api.post(
+        "/auth/register",
+        { name: name.trim(), email: email.trim(), password },
+        { timeout: 35_000 }
+      );
 
       setName("");
       setEmail("");
       setPassword("");
 
       router.push("/dashboard");
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        setError(
-          error.response?.data?.message ||
-            "Registration failed. Please try again."
-        );
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.code === "ECONNABORTED") {
+          setError("The server took too long to respond. Try again in a moment.");
+        } else if (!err.response) {
+          setError("Can't reach the server. Check your connection and try again.");
+        } else {
+          setError(
+            err.response.data?.message ||
+              "We couldn't create your account. Please try again."
+          );
+        }
       } else {
         setError("Something went wrong. Please try again.");
       }
@@ -59,23 +121,26 @@ export default function Register() {
     }
   };
 
+  const inputBase =
+    "w-full rounded-lg border bg-white px-4 py-3 text-[15px] text-slate-900 outline-none transition-shadow placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-[#387ED1]/40 disabled:opacity-50";
+
+  const borderFor = (invalid?: string) =>
+    invalid ? "border-rose-400" : "border-slate-300 focus:border-[#387ED1]";
+
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-white px-4 py-10">
-      {/* Background glow */}
-      <div className="pointer-events-none absolute -left-40 -top-40 h-[420px] w-[420px] rounded-full bg-[#387ED1]/[0.08] blur-[140px]" />
+    <div className="grid min-h-screen bg-white lg:grid-cols-[1.05fr_1fr]">
+      <style>{animationCss}</style>
 
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-[#387ED1]/[0.06] blur-[140px]" />
-
-      <div className="relative w-full max-w-md">
-        {/* Brand */}
-        <Link
-          href="/"
-          className="mb-8 flex items-center justify-center gap-3"
-        >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#387ED1] text-white shadow-[0_0_25px_-5px_rgba(56,126,209,0.35)]">
+      {/* Brand panel */}
+      <aside
+        aria-hidden="true"
+        className="relative hidden flex-col justify-between overflow-hidden bg-[#0E2747] p-12 text-white lg:flex"
+      >
+        <Link href="/" className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#387ED1]">
             <svg
-              width="22"
-              height="22"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -87,75 +152,173 @@ export default function Register() {
               <path d="M15 6h6v6" />
             </svg>
           </span>
-
-          <span className="text-xl font-semibold tracking-wide text-gray-900">
-            Finora<span className="text-[#387ED1]">.</span>
+          <span className="text-lg font-semibold tracking-wide">
+            Finora<span className="text-[#6FA8E8]">.</span>
           </span>
         </Link>
 
-        {/* Registration form */}
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-3xl border border-gray-200 bg-white p-8 shadow-xl shadow-gray-200/60"
+        <div>
+          <h2 className="max-w-md text-4xl font-semibold leading-[1.15] tracking-tight">
+            One form between you and your first watchlist.
+          </h2>
+
+          <ul className="mt-6 max-w-sm space-y-3 text-[15px] leading-6 text-[#B9CCE6]">
+            {perks.map((perk) => (
+              <li key={perk} className="flex gap-3">
+                <svg
+                  className="mt-1 h-4 w-4 shrink-0 text-[#8DBBF2]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+                {perk}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* The one memorable element: a price line that draws itself */}
+        <svg
+          viewBox="0 0 480 200"
+          className="w-full max-w-xl overflow-visible"
+          fill="none"
         >
-          <h1 className="text-center text-2xl font-semibold text-gray-900">
+          <defs>
+            <linearGradient id="fin-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6FA8E8" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#6FA8E8" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {[50, 100, 150].map((y) => (
+            <line
+              key={y}
+              x1="0"
+              x2="480"
+              y1={y}
+              y2={y}
+              stroke="#FFFFFF"
+              strokeOpacity="0.08"
+            />
+          ))}
+
+          <path
+            className="fin-area"
+            d="M0 150 L40 140 L80 148 L120 120 L160 128 L200 100 L240 110 L280 80 L320 92 L360 60 L400 70 L464 40 L464 200 L0 200 Z"
+            fill="url(#fin-fill)"
+          />
+          <path
+            className="fin-line"
+            pathLength={1}
+            d="M0 150 L40 140 L80 148 L120 120 L160 128 L200 100 L240 110 L280 80 L320 92 L360 60 L400 70 L464 40"
+            stroke="#8DBBF2"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle className="fin-dot" cx="464" cy="40" r="5" fill="#8DBBF2" />
+        </svg>
+      </aside>
+
+      {/* Form panel */}
+      <main className="flex items-center justify-center px-6 py-12 sm:px-12">
+        <div className="w-full max-w-sm">
+          {/* Brand (mobile only, the panel is hidden below lg) */}
+          <Link href="/" className="mb-10 flex items-center gap-3 lg:hidden">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#387ED1] text-white">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 17l6-6 4 4 8-9" />
+                <path d="M15 6h6v6" />
+              </svg>
+            </span>
+            <span className="text-lg font-semibold tracking-wide text-slate-900">
+              Finora<span className="text-[#387ED1]">.</span>
+            </span>
+          </Link>
+
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
             Create your account
           </h1>
-
-          <p className="mt-2 text-center text-sm text-gray-500">
-            Get started with your trading journey
+          <p className="mt-2 text-[15px] text-slate-500">
+            It takes a minute. You can start exploring right after.
           </p>
 
-          <div className="mt-8 space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="mt-8 space-y-5">
             {/* Name */}
             <div>
               <label
                 htmlFor="name"
-                className="mb-2 block text-xs font-medium text-gray-600"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
               >
                 Full name
               </label>
-
               <input
                 id="name"
                 type="text"
-                placeholder="Enter your full name"
+                placeholder="Your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading}
                 autoComplete="name"
-                required
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#387ED1] disabled:opacity-50"
+                autoFocus
+                aria-invalid={!!fieldErrors.name}
+                aria-describedby={fieldErrors.name ? "name-error" : undefined}
+                className={`${inputBase} ${borderFor(fieldErrors.name)}`}
               />
+              {fieldErrors.name && (
+                <p id="name-error" className="mt-1.5 text-sm text-rose-600">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             {/* Email */}
             <div>
               <label
                 htmlFor="email"
-                className="mb-2 block text-xs font-medium text-gray-600"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
               >
                 Email address
               </label>
-
               <input
                 id="email"
                 type="email"
+                inputMode="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
                 autoComplete="email"
-                required
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#387ED1] disabled:opacity-50"
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? "email-error" : undefined}
+                className={`${inputBase} ${borderFor(fieldErrors.email)}`}
               />
+              {fieldErrors.email && (
+                <p id="email-error" className="mt-1.5 text-sm text-rose-600">
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             {/* Password */}
             <div>
               <label
                 htmlFor="password"
-                className="mb-2 block text-xs font-medium text-gray-600"
+                className="mb-1.5 block text-sm font-medium text-slate-700"
               >
                 Password
               </label>
@@ -167,100 +330,104 @@ export default function Register() {
                   placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+                  onBlur={() => setCapsLock(false)}
                   disabled={loading}
                   autoComplete="new-password"
-                  minLength={8}
-                  required
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 pr-12 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#387ED1] disabled:opacity-50"
+                  aria-invalid={!!fieldErrors.password}
+                  aria-describedby={
+                    fieldErrors.password ? "password-error" : "password-hint"
+                  }
+                  className={`${inputBase} pr-16 ${borderFor(
+                    fieldErrors.password
+                  )}`}
                 />
 
-                {/* Toggle password visibility */}
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-900"
+                  aria-pressed={showPassword}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-sm font-medium text-slate-500 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-[#387ED1]"
                 >
-                  {showPassword ? (
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 3l18 18" />
-                      <path d="M10.6 10.6a2 2 0 002.8 2.8" />
-                      <path d="M9.9 4.2A9.1 9.1 0 0112 4c5 0 9 4.5 10 8a11.8 11.8 0 01-4 5.3" />
-                      <path d="M6.2 6.2A12.7 12.7 0 002 12c1 3.5 5 8 10 8a10.5 10.5 0 005.1-1.3" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M2 12s4-8 10-8 10 8 10 8-4 8-10 8-10-8-10-8Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
+                  {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
 
-              <p className="mt-2 text-xs text-gray-500">
-                Use at least 8 characters.
-              </p>
+              {fieldErrors.password ? (
+                <p id="password-error" className="mt-1.5 text-sm text-rose-600">
+                  {fieldErrors.password}
+                </p>
+              ) : (
+                <p
+                  id="password-hint"
+                  className={`mt-1.5 text-sm ${
+                    passwordLongEnough ? "text-emerald-700" : "text-slate-500"
+                  }`}
+                >
+                  {passwordLongEnough
+                    ? "Password length looks good."
+                    : `Use at least ${MIN_PASSWORD_LENGTH} characters.`}
+                </p>
+              )}
+              {capsLock && (
+                <p className="mt-1 text-sm text-amber-700">Caps Lock is on.</p>
+              )}
             </div>
 
-            {/* Error message */}
+            {/* Server error */}
             {error && (
               <div
                 role="alert"
-                className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600"
+                className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
               >
                 {error}
               </div>
             )}
 
-            {/* Submit button */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-[#387ED1] py-3.5 text-sm font-semibold text-white transition-colors hover:bg-[#2F6FBD] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-busy={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#387ED1] py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#2F6FBD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#387ED1] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading && (
+                <svg
+                  className="h-4 w-4 animate-spin motion-reduce:animate-none"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    strokeOpacity="0.3"
+                    strokeWidth="3"
+                  />
+                  <path
+                    d="M21 12a9 9 0 00-9-9"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              )}
+              {loading ? "Creating account" : "Create account"}
             </button>
-          </div>
+          </form>
 
-          {/* Login link */}
-          <p className="mt-7 text-center text-sm text-gray-500">
+          <p className="mt-8 text-sm text-slate-500">
             Already have an account?{" "}
             <Link
               href="/login"
-              className="font-medium text-[#387ED1] transition-colors hover:text-blue-700"
+              className="font-medium text-[#2F6FBD] hover:underline"
             >
               Log in
             </Link>
           </p>
-        </form>
-
-        {/* Footer */}
-        <p className="mt-6 text-center text-xs leading-5 text-gray-500">
-          Create your account and explore your trading dashboard.
-          <br />
-          Built for your Finora clone project.
-        </p>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
