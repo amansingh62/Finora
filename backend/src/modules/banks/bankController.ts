@@ -78,6 +78,7 @@ export const linkBankAccount = async (req: Request, res: Response) => {
         ifscCode: true,
         isPrimary: true,
         balance: true,
+        createdAt: true,
       },
     });
 

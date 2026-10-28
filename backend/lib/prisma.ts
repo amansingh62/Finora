@@ -11,8 +11,8 @@ if (!connectionString) {
 const adapter = new PrismaPg({
   connectionString,
   max: 10,
-  connectionTimeoutMillis: 10_000,
-  idleTimeoutMillis: 10_000,
+  connectionTimeoutMillis: 30_000,
+  idleTimeoutMillis: 30_000,
 });
 
 const prisma = new PrismaClient({
