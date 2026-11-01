@@ -1,4 +1,7 @@
+
 import "dotenv/config";
+
+import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client.js";
 
@@ -8,12 +11,29 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not defined");
 }
 
-const adapter = new PrismaPg({
+const pool = new Pool({
   connectionString,
-  max: 10,
-  connectionTimeoutMillis: 30_000,
-  idleTimeoutMillis: 30_000,
+
+  // Maximum connections in this application instance.
+  max: 5,
+
+  // Wait up to 15 seconds for a connection.
+  connectionTimeoutMillis: 15_000,
+
+  // Close unused connections after 10 seconds.
+  // Helps avoid keeping stale connections during Neon inactivity.
+  idleTimeoutMillis: 10_000,
+
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
 });
+
+// Capture unexpected errors from idle connections.
+pool.on("error", (error) => {
+  console.error("PostgreSQL idle pool error:", error);
+});
+
+const adapter = new PrismaPg(pool);
 
 const prisma = new PrismaClient({
   adapter,

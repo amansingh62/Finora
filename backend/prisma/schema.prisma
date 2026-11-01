@@ -63,85 +63,68 @@ enum BankName {
 }
 
 model User {
-  id       String @id @default(uuid())
-  name     String
-  email    String @unique
-  password String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  bankAccounts  BankAccount[]
   refreshTokens RefreshToken[]
   wallet        Wallet?
-  bankAccounts BankAccount[]
 }
 
 model RefreshToken {
-  id    String @id @default(uuid())
-  token String @unique
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model Wallet {
-  id String @id @default(uuid())
-
-  cashBalance         Decimal @default(0) @db.Decimal(18, 2)
-  usedMargin          Decimal @default(0) @db.Decimal(18, 2)
-  reservedWithdrawals Decimal @default(0) @db.Decimal(18, 2)
-
-  status WalletStatus @default(ACTIVE)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  ledgerEntries LedgerEntry[]
-  withdrawals   Withdrawal[]
-  deposits Deposit[]
+  id                  String        @id @default(uuid())
+  cashBalance         Decimal       @default(0) @db.Decimal(18, 2)
+  usedMargin          Decimal       @default(0) @db.Decimal(18, 2)
+  reservedWithdrawals Decimal       @default(0) @db.Decimal(18, 2)
+  status              WalletStatus  @default(ACTIVE)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  userId              String        @unique
+  deposits            Deposit[]
+  ledgerEntries       LedgerEntry[]
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawals         Withdrawal[]
 }
 
 model Transaction {
-  id String @id @default(uuid())
-
+  id              String            @id @default(uuid())
   amount          Decimal           @db.Decimal(18, 2)
   transactionType TransactionType
   referenceId     String            @unique
   status          TransactionStatus @default(PENDING)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  ledgerEntries LedgerEntry[]
-  withdrawal    Withdrawal?
-  deposit Deposit?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deposit         Deposit?
+  ledgerEntries   LedgerEntry[]
+  withdrawal      Withdrawal?
 }
 
 model LedgerEntry {
-  id String @id @default(uuid())
-
-  entryType    LedgerEntryType
-  amount       Decimal         @db.Decimal(18, 2)
-  direction    Direction
-  balanceAfter Decimal         @db.Decimal(18, 2)
-
-  walletId String
-  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
-
+  id            String          @id @default(uuid())
+  entryType     LedgerEntryType
+  amount        Decimal         @db.Decimal(18, 2)
+  direction     Direction
+  balanceAfter  Decimal         @db.Decimal(18, 2)
+  walletId      String
   transactionId String
-  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-
-  referenceId String?
-
-  createdAt DateTime @default(now())
+  referenceId   String?
+  createdAt     DateTime        @default(now())
+  transaction   Transaction     @relation(fields: [transactionId], references: [id])
+  wallet        Wallet          @relation(fields: [walletId], references: [id])
 
   @@index([walletId, createdAt])
   @@index([transactionId])
@@ -149,60 +132,47 @@ model LedgerEntry {
 }
 
 model Withdrawal {
-  id String @id @default(uuid())
-
-  amount         Decimal @db.Decimal(18, 2)
+  id             String           @id @default(uuid())
+  amount         Decimal          @db.Decimal(18, 2)
   reservedAmount Decimal
-
   status         WithdrawalStatus @default(PENDING)
   idempotencyKey String           @unique
   referenceId    String?          @unique
-
-  failureReason String?
-
-  requestedAt DateTime  @default(now())
-  completedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  walletId String
-  wallet   Wallet @relation(fields: [walletId], references: [id])
-
-  transactionId String?      @unique
-  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  failureReason  String?
+  requestedAt    DateTime         @default(now())
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  walletId       String
+  transactionId  String?          @unique
+  bankAccountId  String?
+  bankAccount    BankAccount?     @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  transaction    Transaction?     @relation(fields: [transactionId], references: [id])
+  wallet         Wallet           @relation(fields: [walletId], references: [id])
 
   @@index([walletId, createdAt])
   @@index([status, createdAt])
+  @@index([bankAccountId])
 }
 
 model Deposit {
-  id String @id @default(cuid())
-
-  amount Decimal @db.Decimal(18, 2)
-
-  status DepositStatus @default(PENDING)
-
-  referenceId    String? @unique
-  idempotencyKey String @unique
-
+  id               String        @id @default(cuid())
+  amount           Decimal       @db.Decimal(18, 2)
+  status           DepositStatus @default(PENDING)
+  referenceId      String?       @unique
+  idempotencyKey   String        @unique
   paymentReference String?
   failureReason    String?
-
-  requestedAt DateTime  @default(now())
-  completedAt DateTime?
-
-  walletId String
-  wallet   Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
-
-  bankAccountId String?
-  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
-
-  transactionId String? @unique
-  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  requestedAt      DateTime      @default(now())
+  completedAt      DateTime?
+  walletId         String
+  transactionId    String?       @unique
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  bankAccountId    String?
+  bankAccount      BankAccount?  @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  transaction      Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  wallet           Wallet        @relation(fields: [walletId], references: [id])
 
   @@index([walletId, createdAt])
   @@index([status, createdAt])
@@ -210,22 +180,20 @@ model Deposit {
 }
 
 model BankAccount {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   bankName      BankName
-  balance       Decimal  @default(0) @db.Decimal(15, 2)
-
   accountHolder String
-  accountNumber String   @unique
+  accountNumber String       @unique
   ifscCode      String
-
-  isPrimary Boolean @default(false)
-
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User @relation(fields: [userId], references: [id])
-
-  deposits Deposit[]
+  createdAt     DateTime     @default(now())
+  userId        String
+  isPrimary     Boolean      @default(false)
+  balance       Decimal      @default(0) @db.Decimal(15, 2)
+  user          User         @relation(fields: [userId], references: [id])
+  deposits      Deposit[]
+  withdrawals   Withdrawal[]
 
   @@index([userId])
 }
+
+

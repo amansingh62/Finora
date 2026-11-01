@@ -14,6 +14,12 @@ export const deposit = async (req: Request, res: Response) => {
 
     const idempotencyKey = req.get("Idempotency-Key")?.trim();
 
+    if (!idempotencyKey) {
+      return res.status(400).json({
+        message: "Idempotency key is required",
+      });
+    }
+
     if (!userId) {
       return res.status(401).json({
         message: "Unauthorized",
@@ -26,25 +32,23 @@ export const deposit = async (req: Request, res: Response) => {
       });
     }
 
-    const bankAccount = await prisma.bankAccount.findFirst({
-      where: {
-        id: bankAccountId,
-        userId,
-      },
-      select: {
-        id: true,
-      },
-    });
+   const bankAccount = await prisma.bankAccount.findFirst({
+  where: {
+    id: bankAccountId,
+    userId,
+  },
+  select: {
+    id: true,
+    bankName: true,
+    accountHolder: true,
+    accountNumber: true,
+    ifscCode: true,
+  },
+});
 
     if (!bankAccount) {
       return res.status(404).json({
         message: "Bank account not found",
-      });
-    }
-
-    if (!idempotencyKey) {
-      return res.status(400).json({
-        message: "Idempotency key is required",
       });
     }
 
@@ -58,7 +62,7 @@ export const deposit = async (req: Request, res: Response) => {
 
     if (!isValidAmountType || !isWholeNumber) {
       return res.status(400).json({
-        message: "Amount must be a positive whole number",
+        message: "Amount must be a whole number",
       });
     }
 
@@ -96,11 +100,14 @@ export const deposit = async (req: Request, res: Response) => {
         });
       }
 
-      if (!existingDeposit.amount.equals(depositAmount)) {
-        return res.status(409).json({
-          message: "Idempotency key was used with a different amount",
-        });
-      }
+      if (
+  !existingDeposit.amount.equals(depositAmount) ||
+  existingDeposit.bankAccountId !== bankAccountId
+) {
+  return res.status(409).json({
+    message: "Idempotency key was used with different deposit details",
+  });
+}
 
       if (
         existingDeposit.status !== DepositStatus.PENDING &&
@@ -128,6 +135,7 @@ export const deposit = async (req: Request, res: Response) => {
           status: result.deposit.status,
           referenceId: result.deposit.referenceId,
           transactionId: result.deposit.transactionId,
+          bankAccount: result.bankAccount,
         },
         walletBalance: result.balance.toString(),
       });
@@ -182,6 +190,7 @@ export const deposit = async (req: Request, res: Response) => {
         status: result.deposit.status,
         referenceId: result.deposit.referenceId,
         transactionId: result.deposit.transactionId,
+        bankAccount: result.bankAccount,
       },
       walletBalance: result.balance.toString(),
     });
