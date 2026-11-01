@@ -297,6 +297,12 @@ export const getDeposit = async (req: Request, res: Response) => {
         requestedAt: true,
         completedAt: true,
         createdAt: true,
+        
+        bankAccount: {
+          select: {
+            bankName: true,
+          }
+        }
       },
     });
 

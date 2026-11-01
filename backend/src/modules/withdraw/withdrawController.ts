@@ -460,7 +460,13 @@ export const getWithdrawal = async (req: Request, res: Response) => {
         updatedAt: true,
         completedAt: true,
         requestedAt: true,
+        bankAccount: {
+          select: {
+            bankName: true,
+          }
+        }
       },
+
     });
 
     if (!withdrawal) {
