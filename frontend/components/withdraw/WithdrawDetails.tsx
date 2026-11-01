@@ -92,6 +92,13 @@ export default function WithdrawalDetails({
             </div>
 
             <div className="flex justify-between gap-4">
+              <span className="text-gray-500">To Bank</span>
+              <span className="break-all text-right text-gray-900 dark:text-white">
+                {withdrawal.bankAccount?.bankName || "Pending"}
+              </span>
+            </div>
+
+            <div className="flex justify-between gap-4">
               <span className="text-gray-500">Requested At</span>
               <span className="text-right text-gray-900 dark:text-white">
                 {withdrawal.requestedAt

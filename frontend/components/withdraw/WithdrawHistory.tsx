@@ -11,6 +11,10 @@ interface Withdrawal {
   requestedAt: string;
   completedAt: string | null;
   createdAt: string;
+
+  bankAccount: {
+    bankName: string
+  } | null;
 }
 
 interface WithdrawalHistoryProps {

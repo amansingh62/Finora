@@ -25,6 +25,7 @@ export const useCreateWithdraw = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["withdrawal"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
   });
@@ -39,7 +40,7 @@ export const useGetAllWithdrawals = () => {
 
 export const useGetWithdrawal = (id: string) => {
   return useQuery({
-    queryKey: ["withdrawals", id],
+    queryKey: ["withdrawal", id],
     queryFn: () => getWithdrawal(id),
     enabled: Boolean(id),
   });
