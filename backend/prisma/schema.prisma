@@ -60,6 +60,16 @@ enum BankName {
   ICICI
   AXIS
   KOTAK
+  PNB
+}
+
+enum StockCategoryKey {
+  NIFTY_50
+  SENSEX
+  BANK_NIFTY
+  MID_CAP
+  SMALL_CAP
+  LARGE_CAP
 }
 
 model User {
@@ -196,4 +206,86 @@ model BankAccount {
   @@index([userId])
 }
 
+model Stock {
+  id       String  @id @default(uuid())
+  name     String
+  symbol   String  @unique
+  exchange String  @default("NSE")
+  sector   String?
 
+  quote      MarketQuote?
+  categories StockCategoryMembership[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([sector])
+  @@index([exchange, isActive])
+}
+
+model MarketQuote {
+  id String @id @default(uuid())
+
+  currentPrice  Decimal @db.Decimal(20, 6)
+  open          Decimal @db.Decimal(20, 6)
+  high          Decimal @db.Decimal(20, 6)
+  low           Decimal @db.Decimal(20, 6)
+  previousClose Decimal @db.Decimal(20, 6)
+
+  volume        BigInt
+  marketCapt    Decimal? @db.Decimal(24, 2)
+  peRatio       Decimal? @db.Decimal(12, 4)
+  eps           Decimal? @db.Decimal(12, 4)
+  dividendYeild Decimal? @db.Decimal(12, 4)
+
+  asOf      DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockId String @unique
+  stock   Stock  @relation(fields: [stockId], references: [id])
+
+  @@index([updatedAt])
+}
+
+model StockCategory {
+  id          String           @id @default(uuid())
+  key         StockCategoryKey @unique
+  name        String
+  description String?
+
+  stocks StockCategoryMembership[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model StockCategoryMembership {
+  id String @id @default(uuid())
+
+  stockId    String
+  categoryId String
+
+  stock    Stock         @relation(fields: [stockId], references: [id])
+  category StockCategory @relation(fields: [categoryId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([stockId, categoryId])
+  @@index([categoryId])
+}
+
+model StockPriceHistory {
+  id        String   @id @default(uuid())
+  stockId   String
+  open      Decimal  @db.Decimal(20, 6)
+  high      Decimal  @db.Decimal(20, 6)
+  low       Decimal  @db.Decimal(20, 6)
+  close     Decimal  @db.Decimal(20, 6)
+  volume    BigInt
+  interval  String
+  timestamp DateTime
+
+  @@index([stockId, interval, timestamp])
+}
